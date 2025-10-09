@@ -1,3 +1,3 @@
 # interop
 
-Librería para faciliatar el desarrollo de integraciones entre diferentes sistemas.
+Librería para facilitar el desarrollo de integraciones entre diferentes sistemas, inspirado en Mirth Connect.
