@@ -1,11 +1,3 @@
-interface ISourceConnector<TRawMessage, TTransformedMessage> {
-  readonly config: {
-    transformer: (raw: TRawMessage) => TTransformedMessage;
-  };
-  start(): Promise<void>;
-  read(): Promise<TTransformedMessage>;
-}
-
 interface IDestinationConnector<
   TRawMessage,
   TTransformedMessage,
@@ -18,5 +10,5 @@ interface IDestinationConnector<
   };
   start(): Promise<void>;
 
-  send(raw: TRawMessage): Promise<TTransformedResponse>;
+  write(raw: TRawMessage): Promise<TTransformedResponse>;
 }

@@ -43,7 +43,6 @@ const config = {
   //   "clover"
   // ],
 
-  
   // An object that configures minimum threshold enforcement for coverage results
   // coverageThreshold: undefined,
 
@@ -195,6 +194,7 @@ const config = {
 
   // Whether to use watchman for file crawling
   // watchman: true,
+  useStderr: true,
 };
 
 export default config;
