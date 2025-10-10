@@ -5,6 +5,7 @@
 
 /** @type {import('jest').Config} */
 const config = {
+  testTimeout: 30000,
   // All imported modules in your tests should be mocked automatically
   // automock: false,
 
@@ -42,6 +43,7 @@ const config = {
   //   "clover"
   // ],
 
+  
   // An object that configures minimum threshold enforcement for coverage results
   // coverageThreshold: undefined,
 

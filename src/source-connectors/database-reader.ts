@@ -11,6 +11,8 @@ export class DatabaseReader<
   TTransformedMessage
 > implements ISourceConnector<TRawMessage, TTransformedMessage>
 {
+  private started = false;
+  private reading = false;
   public readonly client: Sequelize;
 
   public constructor(
@@ -29,7 +31,7 @@ export class DatabaseReader<
           };
 
       polling: {
-        type: TPollingScheduleType;
+        scheduleType: TPollingScheduleType;
         pollOnStart: boolean;
       } & (TPollingScheduleType extends "interval"
         ? {
@@ -63,10 +65,31 @@ export class DatabaseReader<
   }
 
   async start(): Promise<void> {
+    if (this.started === true) {
+      throw new Error("Reader has already been started");
+    }
+    this.started = true;
     await this.client.query(this.config.queries.onStart ?? "SELECT 1;");
+
+    if (this.config.polling.pollOnStart === true) {
+      await this.read();
+    }
   }
 
-  read(): Promise<TTransformedMessage> {
-    return Promise.resolve(this.config.transformer({} as TRawMessage));
+  async read(): Promise<TTransformedMessage> {
+    if (this.started === false) {
+      throw new Error("Reader has not been started");
+    }
+
+    if (this.reading === true) {
+      throw new Error("Reader is already reading");
+    }
+
+    this.reading = true;
+    const [rows] = await this.client.query(this.config.queries.onRead);
+    const transformedResult = this.config.transformer({
+      rows: rows,
+    } as TRawMessage);
+    return transformedResult;
   }
 }

@@ -6,7 +6,7 @@ const createReader = () => {
     driver: "sqlite",
     connection: { file: ":memory:" },
     polling: {
-      type: "interval",
+      scheduleType: "interval",
       interval: 5,
       unit: "seconds",
       pollOnStart: false,
@@ -30,13 +30,19 @@ const createReader = () => {
 };
 
 describe("sqlite-database-reader", () => {
-  it("Should create the reader", async () => {
-    const reader = createReader();
-    expect(reader).toBeDefined();
-  });
-
-  it("Should execute the onStart query", async () => {
+  it("Should start the reader", async () => {
     const reader = createReader();
     await expect(reader.start()).resolves.not.toThrow();
+  });
+
+  it("Should throw when trying to read before starting", async () => {
+    const reader = createReader();
+    await expect(reader.read()).rejects.toThrow();
+  });
+
+  it("Should read", async () => {
+    const reader = createReader();
+    await reader.start();
+    await expect(reader.read()).resolves.not.toThrow();
   });
 });
