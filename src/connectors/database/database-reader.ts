@@ -3,17 +3,15 @@ import {
   SourceConnector,
   SourceConnectorBaseConfig,
 } from "../source-connector";
-
-type DBReaderRawMessage = {
-  rows: Record<string, unknown>[];
-};
+import mitt, { Emitter } from "mitt";
 
 type SupportedDatabaseDriver = "sqlite" | "mssql";
 
-type DBReaderConfig<
+type DatabaseReaderConfig<
+  TRawMessage extends Record<string, unknown>,
   TTransformedMessage,
   TDatabaseDriver extends SupportedDatabaseDriver
-> = SourceConnectorBaseConfig<DBReaderRawMessage, TTransformedMessage> & {
+> = SourceConnectorBaseConfig<TRawMessage, TTransformedMessage> & {
   driver: TDatabaseDriver;
 
   connection: TDatabaseDriver extends "sqlite"
@@ -25,22 +23,26 @@ type DBReaderConfig<
         username?: string;
         password?: string;
       };
-
-  polling: {
-    scheduleType: "interval";
-    interval: number;
-    unit: "milliseconds" | "seconds" | "minutes" | "hours";
-  };
   onInitQueries: string[];
   onReadQuery: string;
-};
+} & ReaderConfig;
 
 export class DatabaseReader<
+  TRawMessage extends Record<string, unknown>,
   TTransformedMessage,
   TDatabaseDriver extends SupportedDatabaseDriver
-> extends SourceConnector<DBReaderRawMessage, TTransformedMessage> {
+> extends SourceConnector<TRawMessage, TTransformedMessage> {
+  db: Sequelize | null = null;
+
+  pollingInterval: NodeJS.Timeout | null = null;
+  isRunningInterval: boolean = false;
+
   public constructor(
-    public config: DBReaderConfig<TTransformedMessage, TDatabaseDriver>
+    public config: DatabaseReaderConfig<
+      TRawMessage,
+      TTransformedMessage,
+      TDatabaseDriver
+    >
   ) {
     super({
       transformer: config.transformer,
@@ -48,9 +50,9 @@ export class DatabaseReader<
     });
   }
 
-  client: Sequelize | null = null;
-
-  protected async onInit(): Promise<void> {
+  protected async _init(
+    onNewMessage: (message: TTransformedMessage) => void
+  ): Promise<void> {
     const sequelizeOptions: SequelizeOptions = {
       dialect: this.config.driver,
     };
@@ -65,36 +67,63 @@ export class DatabaseReader<
       sequelizeOptions.host = this.config.connection.host;
     }
 
-    this.client = new Sequelize({
+    this.db = new Sequelize({
       ...sequelizeOptions,
       logging: false,
     });
 
     if ("onInitQueries" in this.config) {
       for (const initQuery of this.config.onInitQueries) {
-        await this.client.query(initQuery);
+        await this.db.query(initQuery);
       }
+    }
+
+    if (this.config.polling.scheduleType === "interval") {
+      this.pollingInterval = setInterval(async () => {
+        if (this.isRunningInterval) {
+          return;
+        }
+
+        this.isRunningInterval = true;
+
+        try {
+          this.read(onNewMessage);
+        } catch (error) {}
+
+        this.isRunningInterval = false;
+      }, this.config.polling.intervalInSeconds * 1000);
     }
   }
 
-  protected async onRead(): Promise<TTransformedMessage> {
-    if (!this.client) {
+  protected async _read(
+    onNewMessage: (message: TTransformedMessage) => void
+  ): Promise<void> {
+    if (!this.db) {
       throw new Error("Reader has not been initialized");
     }
 
-    const [rows] = await this.client.query(this.config.onReadQuery);
-    const rawMessage = { rows: rows } as DBReaderRawMessage;
-    let filteredRawMessage;
-    let transformedMessage;
+    const [rows] = await this.db.query(this.config.onReadQuery);
+    for (const rawMessage of rows) {
+      let filteredRawMessage;
 
-    if (this.config.filter) {
-      filteredRawMessage = this.config.filter(rawMessage);
+      if (this.config.filter) {
+        filteredRawMessage = this.config.filter(rawMessage as TRawMessage);
+      }
+
+      const transformedMessage = this.config.transformer(
+        filteredRawMessage ?? (rawMessage as TRawMessage)
+      );
+
+      onNewMessage(transformedMessage);
+    }
+  }
+
+  protected async _halt(): Promise<void> {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
     }
 
-    transformedMessage = this.config.transformer(
-      filteredRawMessage ?? rawMessage
-    );
-
-    return transformedMessage;
+    await this.db?.close();
+    this.db = null;
   }
 }

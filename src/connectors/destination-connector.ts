@@ -31,7 +31,7 @@ export abstract class DestinationConnector<
   TRawResponse,
   TTransformedResponse
 > {
-  public readonly id = generateId();
+  public readonly id: string = generateId();
 
   ready = false;
 
@@ -46,9 +46,9 @@ export abstract class DestinationConnector<
 
   async write(rawMessage: TRawMessage): Promise<TTransformedResponse> {
     if (this.ready === false) {
-      throw new Error("Reader has not been initialized");
+      throw new Error("Writer has not been initialized");
     }
-    const result = await this.onWrite(rawMessage);
+    const result = await this._write(rawMessage);
     return result;
   }
 
@@ -56,13 +56,23 @@ export abstract class DestinationConnector<
     if (this.ready === true) {
       return;
     }
-    await this.onInit();
     this.ready = true;
+    await this._init();
   }
 
-  protected abstract onInit(): Promise<void>;
+  async halt(): Promise<void> {
+    if (this.ready === false) {
+      return;
+    }
+    this.ready = false;
+    await this._halt();
+  }
 
-  protected abstract onWrite(
+  protected abstract _init(): Promise<void>;
+
+  protected abstract _write(
     rawMessage: TRawMessage
   ): Promise<TTransformedResponse>;
+
+  protected abstract _halt(): Promise<void>;
 }

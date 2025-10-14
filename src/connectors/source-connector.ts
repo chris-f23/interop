@@ -15,7 +15,7 @@ export type SourceConnectorBaseConfig<TRawMessage, TTransformedMessage> = {
 };
 
 export abstract class SourceConnector<TRawMessage, TTransformedMessage> {
-  public readonly id = generateId();
+  public readonly id: string = generateId();
 
   ready = false;
 
@@ -26,23 +26,41 @@ export abstract class SourceConnector<TRawMessage, TTransformedMessage> {
     >
   ) {}
 
-  async read(): Promise<TTransformedMessage> {
+  async read(
+    onNewMessage: (message: TTransformedMessage) => void
+  ): Promise<void> {
     if (this.ready === false) {
       throw new Error("Reader has not been initialized");
     }
-    const result = await this.onRead();
-    return result;
+
+    await this._read(onNewMessage);
   }
 
-  async init(): Promise<void> {
+  async init(
+    onNewMessage: (message: TTransformedMessage) => void
+  ): Promise<void> {
     if (this.ready === true) {
       return;
     }
-    await this.onInit();
     this.ready = true;
+    await this._init(onNewMessage);
   }
 
-  protected abstract onInit(): Promise<void>;
+  async halt(): Promise<void> {
+    if (this.ready === false) {
+      return;
+    }
+    this.ready = false;
+    await this._halt();
+  }
 
-  protected abstract onRead(): Promise<TTransformedMessage>;
+  protected abstract _init(
+    onNewMessage: (message: TTransformedMessage) => void
+  ): Promise<void>;
+
+  protected abstract _read(
+    onNewMessage: (message: TTransformedMessage) => void
+  ): Promise<void>;
+
+  protected abstract _halt(): Promise<void>;
 }
