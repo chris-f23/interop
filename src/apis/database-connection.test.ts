@@ -10,6 +10,9 @@ configDotenv({
 describe("DatabaseConnection", () => {
   describe("MSSQL", () => {
     it("Should execute a SELECT query", async () => {
+      expect.hasAssertions();
+
+      // 1. Arrange
       const db = new DatabaseConnection({
         driver: "mssql",
         host: String(process.env.MSSQL_DB_HOST),
@@ -18,9 +21,16 @@ describe("DatabaseConnection", () => {
         password: String(process.env.MSSQL_DB_PASSWORD),
         applicationName: "interop",
       });
+      await db.connect();
 
-      await expect(db.check()).resolves.not.toThrow();
-      await expect(db.query("SELECT 1 as id;")).resolves.toContainEqual({
+      // 2. Act
+      const result = await db.query({
+        sql: "SELECT 1 as Id;",
+        rowMapper: (row: any) => ({ id: row.Id }),
+      });
+
+      // 3. Assert
+      expect(result).toContainEqual({
         id: 1,
       });
       await expect(db.terminate()).resolves.not.toThrow();
